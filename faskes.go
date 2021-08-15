@@ -14,7 +14,7 @@ import (
 )
 
 //Prov on siranap
-var provSir = map[string]string{
+var ProvSir = map[string]string{
 	"ACEH": "11prop",
 	"SUMATERA UTARA":"12prop",
 	"SUMATERA BARAT":"13prop",
@@ -90,7 +90,7 @@ res := fasthttp.AcquireResponse()
 defer fasthttp.ReleaseRequest(req)
 defer fasthttp.ReleaseResponse(res)
 
-v, ok :=provSir[strings.ToUpper(prop)]
+v, ok :=ProvSir[strings.ToUpper(prop)]
 if !ok{
 	return nil, errors.New("Nama Provinsi tidak valid")
 }
@@ -129,7 +129,7 @@ func (fas *Faskes) AmbilDataKotaRawatInap(prop string) (data map[string]string, 
 	defer fasthttp.ReleaseRequest(req)
 	defer fasthttp.ReleaseResponse(res)
 	
-	v, ok :=provSir[strings.ToUpper(prop)]
+	v, ok :=ProvSir[strings.ToUpper(prop)]
 	if !ok{
 		return nil, errors.New("Nama Provinsi tidak valid")
 	}
