@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 
@@ -62,11 +61,24 @@ type Faskes struct {
 	pool *sync.Pool
 }
 
-type RumahSakit struct{
+type RumahSakitCovid struct{
 	Nama string `json:"nama"`
 	Alamat string `json:"alamat"`
 	Informasi string `json:"informasi,omitempty"`
 	UpdateTerakhir string `json:"updateTerakhir,omitempty"`
+	Nomor string `json:"nomor,omitempty"`
+	Link string `json:"url,omitempty"`
+}
+
+type RumahSakitNonCovid struct{
+	Nama string `json:"nama"`
+	Alamat string `json:"alamat"`
+	Bed []struct{
+		Jumlah string `json:"jumlahBed"`
+		Kelas string `json:"kelas"`
+		Ruang string `json:"ruang"`
+		UpdateTerakhir string `json:"updateTerakhir,omitempty"`
+	} `json:"informasi,omitempty"`
 	Nomor string `json:"nomor,omitempty"`
 	Link string `json:"url,omitempty"`
 }
@@ -84,7 +96,8 @@ func AcquireFaskes() *Faskes{
 	return fas
 }
 
-func (fas *Faskes) InfoRawatInap(prop, kab, jenis string) (data []RumahSakit, err error){
+//data will return array of map or array of RumahSakitCovid or RumahSakitNonCovid
+func (fas *Faskes) InfoRawatInap(prop, kab, jenis string) (data []byte, err error){
 req := fasthttp.AcquireRequest()
 res := fasthttp.AcquireResponse()
 defer fasthttp.ReleaseRequest(req)
@@ -109,9 +122,21 @@ switch strings.ToUpper(jenis){
 }
 	uri := fmt.Sprintf("https://yankes.kemkes.go.id/app/siranap/rumah_sakit?jenis=%v&propinsi=%v&kabkota=%v", tipe,v,d[strings.ToUpper(kab)])
 req.SetRequestURI(uri)
-fasthttp.Do(req,res)
-data = parseToHospitalData(res.Body())
+if err := fasthttp.Do(req,res); err != nil{
+	return nil, err
+}
+switch tipe{
+case COVID:
+res := parseCovidHospitalData(res.Body())
+data, _ :=json.Marshal(&res)
 return data,nil
+case NONCOVID:
+res := parseNonCovidHospitalData(res.Body())	
+data, _ :=json.Marshal(&res)
+return data, nil
+default:
+	return nil, errors.New("Jenis Rawat Inap Tidak Valid. Pilih COVID atau NONCOVID")
+}
 }
 
 /*AmbilDataKotaRawatInap digunakan untuk mengambil list data kota menggunakan parameter provinsi
@@ -158,13 +183,13 @@ func (fas *Faskes) AmbilDataKotaRawatInap(prop string) (data map[string]string, 
 }
 	
 	
-func parseToHospitalData(body []byte) (rs []RumahSakit){
+func parseCovidHospitalData(body []byte) (rs []RumahSakitCovid){
 	br :=bytes.NewReader(body)
 	doc, _ :=goquery.NewDocumentFromReader(br)
 	
 	sel := doc.Find("div[data-string] > .card")
 	sel.Each(func(i int, s *goquery.Selection) {
-		var rumahdata RumahSakit
+		var rumahdata RumahSakitCovid
 		s1 := s.Find(".card-body > .row")
 		rumahdata.Nama = s1.Find(".col-md-7 > h5 ").Text()
 		rumahdata.Alamat = s1.Find(".col-md-7 > p ").Text()
@@ -172,6 +197,7 @@ func parseToHospitalData(body []byte) (rs []RumahSakit){
 		slot := ""
 		antrian := ""
 		s1in.Each(func(i int, s *goquery.Selection) {
+			
 			switch i{
 			case 1:
 				
@@ -195,6 +221,48 @@ func parseToHospitalData(body []byte) (rs []RumahSakit){
 		rumahdata.Informasi = info
 		rs = append(rs, rumahdata)
 	})
-	log.Println(sel.Length())
+return rs
+}
+
+
+func parseNonCovidHospitalData(body []byte) (rs []RumahSakitNonCovid){
+	br :=bytes.NewReader(body)
+	doc, _ :=goquery.NewDocumentFromReader(br)
+	
+	sel := doc.Find("div[data-string] > .card")
+	sel.Each(func(i int, s *goquery.Selection) {
+		var rumahdata RumahSakitNonCovid
+		s1 := s.Find(".card-body > .row")
+		rumahdata.Nama = s1.Find(".col-md-5 > h5 ").Text()
+		rumahdata.Alamat = s1.Find(".col-md-5 > p ").Text()
+		s1in := s1.Find(".col-md-7 > div > div")
+		s1in.Each(func(i int, s *goquery.Selection) {
+			var bed struct{
+				Jumlah string `json:"jumlahBed"`
+				Kelas string `json:"kelas"`
+				Ruang string `json:"ruang"`
+				UpdateTerakhir string `json:"updateTerakhir,omitempty"`
+				} 
+
+				s1 := s.Find("div > .card")
+				s1.Find(".card-body > div").Each(func(i int, s *goquery.Selection) {
+					
+					switch i+1{
+					case 1:
+					bed.Jumlah = strings.TrimSpace(s.Text())
+					case 2:
+					bed.Kelas = strings.TrimSpace(s.Text())
+					case 3:
+					bed.Ruang = strings.TrimSpace(s.Text())
+				}
+				})
+				bed.UpdateTerakhir= strings.TrimSpace(s1.Find(".card-footer > div").Text())
+				rumahdata.Bed = append(rumahdata.Bed, bed)
+		})
+		
+		s2 := s.Find(".card-footer > div ")
+		rumahdata.Nomor = s2.Find("span").Text()
+		rs = append(rs, rumahdata)
+	})
 return rs
 }
