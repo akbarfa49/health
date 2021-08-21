@@ -1,3 +1,8 @@
 package covid
 
-func VaccineLocation()
+import "fmt"
+
+func VaccineLocation() {
+	fmt.Println("duar")
+	return
+}
