@@ -266,3 +266,7 @@ func parseNonCovidHospitalData(body []byte) (rs []RumahSakitNonCovid){
 	})
 return rs
 }
+
+func stupid(){
+	
+}

@@ -1,0 +1,3 @@
+package covid
+
+func VaccineLocation()
